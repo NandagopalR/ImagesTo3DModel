@@ -16,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.io.File
 
 class MeshyRepository(
     private val context: Context,
@@ -44,8 +45,19 @@ class MeshyRepository(
         runCatching { api.getTask(id, apiKey = apiKey) }
     }
 
-    suspend fun downloadModel(taskId: String): Result<Uri> = withContext(Dispatchers.IO) {
+    fun getModelFilePath(taskId: String): String {
+        return File(getModelDirectory(), "$taskId.glb").absolutePath
+    }
+
+    fun isModelFileAvailable(taskId: String): Boolean {
+        val file = File(getModelFilePath(taskId))
+        return file.exists() && file.length() > 0
+    }
+
+    suspend fun getOrDownloadModelFilePath(taskId: String): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
+            if (isModelFileAvailable(taskId)) return@runCatching getModelFilePath(taskId)
+
             val apiKey = "Bearer ${BuildConfig.MESHY_API_KEY}"
             val task = api.getTask(taskId, apiKey)
             val modelUrl = task.modelUrls?.get("glb")
@@ -62,6 +74,7 @@ class MeshyRepository(
                     MediaStore.Downloads.RELATIVE_PATH,
                     "${Environment.DIRECTORY_DOWNLOADS}/Meshy_EAM"
                 )
+                put(MediaStore.Downloads.IS_PENDING, 1)
             }
             val resolver = context.contentResolver
             val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
@@ -69,7 +82,12 @@ class MeshyRepository(
             resolver.openOutputStream(uri)?.use { output ->
                 body.byteStream().use { input -> input.copyTo(output) }
             } ?: error("Unable to write download file")
-            uri
+
+            val completedValues = ContentValues().apply {
+                put(MediaStore.Downloads.IS_PENDING, 0)
+            }
+            resolver.update(uri, completedValues, null, null)
+            getModelFilePath(taskId)
         }
     }
 
@@ -78,6 +96,13 @@ class MeshyRepository(
             ?: error("Unable to read image")
         val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
         return "data:image/jpeg;base64,$encoded"
+    }
+
+    private fun getModelDirectory(): File {
+        return File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+            "Meshy_EAM"
+        )
     }
 
     companion object {

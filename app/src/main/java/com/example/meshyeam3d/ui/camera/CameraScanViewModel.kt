@@ -60,7 +60,7 @@ class CameraScanViewModel(
     }
 
     companion object {
-        const val REQUIRED_IMAGE_COUNT = 5
+        const val REQUIRED_IMAGE_COUNT = 4
 
         fun factory(repository: MeshyRepository): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {

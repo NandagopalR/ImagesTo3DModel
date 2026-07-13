@@ -1,6 +1,5 @@
 package com.example.meshyeam3d.ui.history
 
-import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -15,7 +14,7 @@ data class HistoryUiState(
     val items: List<HistoryItem> = emptyList(),
     val downloadingId: String? = null,
     val message: String? = null,
-    val downloadedUri: Uri? = null
+    val modelFilePathToOpen: String? = null
 )
 
 class HistoryViewModel(
@@ -28,16 +27,21 @@ class HistoryViewModel(
         _uiState.update { it.copy(items = repository.getHistory()) }
     }
 
-    fun download(taskId: String) {
+    fun view3DModel(taskId: String) {
         viewModelScope.launch {
-            _uiState.update { it.copy(downloadingId = taskId, message = null) }
-            repository.downloadModel(taskId)
-                .onSuccess { uri ->
+            _uiState.update {
+                it.copy(
+                    downloadingId = taskId,
+                    message = null,
+                    modelFilePathToOpen = null
+                )
+            }
+            repository.getOrDownloadModelFilePath(taskId)
+                .onSuccess { filePath ->
                     _uiState.update {
                         it.copy(
                             downloadingId = null,
-                            downloadedUri = uri,
-                            message = "Downloaded to Downloads/Meshy_EAM"
+                            modelFilePathToOpen = filePath
                         )
                     }
                 }
@@ -47,6 +51,10 @@ class HistoryViewModel(
                     }
                 }
         }
+    }
+
+    fun consumeModelOpen() {
+        _uiState.update { it.copy(modelFilePathToOpen = null) }
     }
 
     fun consumeMessage() {

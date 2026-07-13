@@ -33,7 +33,10 @@ import java.util.Date
 import java.util.Locale
 
 @Composable
-fun HistoryScreen(viewModel: HistoryViewModel) {
+fun HistoryScreen(
+    viewModel: HistoryViewModel,
+    onOpenModel: (String) -> Unit
+) {
     val state by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -44,6 +47,12 @@ fun HistoryScreen(viewModel: HistoryViewModel) {
         state.message?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.consumeMessage()
+        }
+    }
+    LaunchedEffect(state.modelFilePathToOpen) {
+        state.modelFilePathToOpen?.let { filePath ->
+            onOpenModel(filePath)
+            viewModel.consumeModelOpen()
         }
     }
 
@@ -68,7 +77,7 @@ fun HistoryScreen(viewModel: HistoryViewModel) {
                         HistoryCard(
                             item = item,
                             isDownloading = state.downloadingId == item.id,
-                            onDownload = { viewModel.download(item.id) }
+                            onViewModel = { viewModel.view3DModel(item.id) }
                         )
                     }
                 }
@@ -86,7 +95,7 @@ fun HistoryScreen(viewModel: HistoryViewModel) {
 private fun HistoryCard(
     item: HistoryItem,
     isDownloading: Boolean,
-    onDownload: () -> Unit
+    onViewModel: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -115,10 +124,10 @@ private fun HistoryCard(
                     CircularProgressIndicator(modifier = Modifier.padding(4.dp))
                 } else {
                     Text(
-                        text = "Download",
+                        text = "View 3D Model",
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.clickable(onClick = onDownload)
+                        modifier = Modifier.clickable(onClick = onViewModel)
                     )
                 }
             }
