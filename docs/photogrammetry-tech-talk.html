@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Photogrammetry — From Photos to 3D</title>
+<style>
+  :root{
+    --bg:#0a0e1a;
+    --bg2:#111a30;
+    --ink:#eaf0ff;
+    --muted:#95a3c9;
+    --cyan:#3ee6d0;
+    --violet:#8b7bff;
+    --pink:#ff6cab;
+    --amber:#ffce4a;
+    --green:#5ef2a0;
+    --card:rgba(255,255,255,0.04);
+    --line:rgba(255,255,255,0.10);
+    --code:#0d1424;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* ---------- deck ---------- */
+  .deck{position:fixed;inset:0}
+  .slide{
+    position:absolute;inset:0;
+    display:none;
+    flex-direction:column;
+    justify-content:center;
+    padding:6vh 7vw;
+    opacity:0;
+    transition:opacity .35s ease;
+    overflow:auto;
+  }
+  .slide.active{display:flex;opacity:1;animation:rise .5s ease}
+  @keyframes rise{from{transform:translateY(18px);opacity:0}to{transform:translateY(0);opacity:1}}
+  .slide::-webkit-scrollbar{width:0}
+
+  /* gradient washes */
+  .slide::before{
+    content:"";position:absolute;inset:0;z-index:-1;
+    background:
+      radial-gradient(900px 600px at 12% -8%, rgba(139,123,255,.22), transparent 60%),
+      radial-gradient(800px 600px at 105% 110%, rgba(62,230,208,.16), transparent 55%),
+      linear-gradient(160deg,var(--bg),var(--bg2));
+  }
+
+  /* ---------- typography ---------- */
+  h1{font-size:clamp(34px,5.4vw,74px);line-height:1.03;letter-spacing:-.02em;font-weight:800}
+  h2{font-size:clamp(26px,3.6vw,46px);line-height:1.08;letter-spacing:-.015em;font-weight:800;margin-bottom:.5em}
+  h3{font-size:clamp(17px,1.6vw,22px);font-weight:700}
+  p,li{font-size:clamp(15px,1.55vw,20px);line-height:1.5;color:var(--ink)}
+  .muted{color:var(--muted)}
+  .kicker{
+    display:inline-flex;align-items:center;gap:.5em;
+    font-size:13px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--cyan);margin-bottom:1.1em;
+  }
+  .kicker .dot{width:8px;height:8px;border-radius:50%;background:var(--cyan);box-shadow:0 0 14px var(--cyan)}
+  .grad{background:linear-gradient(100deg,var(--cyan),var(--violet) 55%,var(--pink));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lead{font-size:clamp(17px,1.9vw,24px);color:var(--muted);max-width:52ch;margin-top:.9em}
+
+  /* ---------- layout helpers ---------- */
+  .row{display:flex;gap:26px;flex-wrap:wrap}
+  .cols-2{display:grid;grid-template-columns:1fr 1fr;gap:30px;align-items:center}
+  .cols-2b{display:grid;grid-template-columns:1.05fr .95fr;gap:38px;align-items:center}
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+  .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+  ul{list-style:none;display:flex;flex-direction:column;gap:.7em;margin-top:.4em}
+  li{padding-left:1.6em;position:relative}
+  li::before{content:"";position:absolute;left:0;top:.62em;width:9px;height:9px;border-radius:2px;
+    background:linear-gradient(135deg,var(--cyan),var(--violet));box-shadow:0 0 10px rgba(62,230,208,.6)}
+
+  /* cards */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px 22px;
+    backdrop-filter:blur(6px);transition:transform .25s,border-color .25s}
+  .card:hover{transform:translateY(-4px);border-color:rgba(62,230,208,.5)}
+  .card .ico{font-size:30px;margin-bottom:10px;display:block}
+  .card h3{margin-bottom:.35em}
+  .card p{font-size:15px;color:var(--muted);line-height:1.45}
+
+  .pill{display:inline-block;padding:.3em .8em;border-radius:999px;border:1px solid var(--line);
+    font-size:13px;font-weight:600;color:var(--muted);background:rgba(255,255,255,.03)}
+
+  .stat{font-size:clamp(30px,4vw,54px);font-weight:800;line-height:1}
+  .stat.c{color:var(--cyan)} .stat.v{color:var(--violet)} .stat.p{color:var(--pink)} .stat.a{color:var(--amber)}
+
+  code,.mono{font-family:"SF Mono",ui-monospace,"Cascadia Code",Consolas,monospace}
+  pre{background:var(--code);border:1px solid var(--line);border-radius:14px;padding:18px 20px;
+    font-size:clamp(12px,1.15vw,15px);line-height:1.55;overflow:auto;color:#d6e0ff}
+  pre .k{color:var(--violet)} pre .s{color:var(--green)} pre .c{color:#5d6b93;font-style:italic}
+  pre .f{color:var(--cyan)} pre .n{color:var(--amber)}
+
+  .tag{display:inline-block;font-size:12.5px;font-weight:700;padding:.35em .7em;border-radius:8px;margin:3px 4px 0 0;
+    background:rgba(139,123,255,.14);color:#c9c1ff;border:1px solid rgba(139,123,255,.35)}
+  .tag.c{background:rgba(62,230,208,.12);color:#a6f5ea;border-color:rgba(62,230,208,.35)}
+
+  /* pipeline steps */
+  .step{position:relative;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 16px 16px 58px}
+  .step .num{position:absolute;left:14px;top:14px;width:30px;height:30px;border-radius:9px;
+    display:grid;place-items:center;font-weight:800;font-size:15px;color:#08111f;
+    background:linear-gradient(135deg,var(--cyan),var(--violet))}
+  .step h3{font-size:16px;margin-bottom:.2em}
+  .step p{font-size:13.5px;color:var(--muted);line-height:1.4}
+
+  /* footer / progress */
+  .foot{position:fixed;bottom:16px;left:0;right:0;display:flex;justify-content:space-between;
+    align-items:center;padding:0 26px;font-size:12.5px;color:var(--muted);z-index:50;pointer-events:none}
+  .foot .brand{font-weight:700;letter-spacing:.04em;color:var(--muted)}
+  .progress{position:fixed;top:0;left:0;height:3px;background:linear-gradient(90deg,var(--cyan),var(--violet),var(--pink));
+    z-index:60;transition:width .35s ease}
+  .hint{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:55;
+    font-size:12px;color:var(--muted);opacity:.6}
+  kbd{border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;padding:1px 7px;font-size:11px;font-family:inherit;color:var(--ink)}
+
+  /* title slide bits */
+  .hero-badge{display:inline-flex;gap:10px;align-items:center;padding:.5em 1em;border-radius:999px;
+    border:1px solid var(--line);background:rgba(255,255,255,.03);font-size:13px;font-weight:600;color:var(--muted)}
+  .hero-meta{display:flex;gap:14px;flex-wrap:wrap;margin-top:2em}
+
+  .callout{border-left:3px solid var(--cyan);padding:.4em 0 .4em 1em;color:var(--muted);font-size:15px}
+
+  .flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap}
+  .flow .node{flex:1;min-width:120px;background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:14px 12px;text-align:center}
+  .flow .node .e{font-size:24px;display:block;margin-bottom:6px}
+  .flow .node h3{font-size:14px} .flow .node p{font-size:12px;color:var(--muted);margin-top:3px}
+  .flow .arr{display:grid;place-items:center;color:var(--cyan);font-size:22px;padding:0 4px}
+
+  /* comparison table */
+  table.cmp{width:100%;border-collapse:collapse;font-size:clamp(11px,1.15vw,15px);margin-top:.3em}
+  table.cmp th,table.cmp td{padding:9px 11px;text-align:left;border-bottom:1px solid var(--line);vertical-align:middle}
+  table.cmp thead th{color:var(--cyan);font-size:11px;text-transform:uppercase;letter-spacing:.07em;font-weight:800}
+  table.cmp tbody tr{transition:background .2s}
+  table.cmp tbody tr:hover{background:rgba(255,255,255,.04)}
+  table.cmp td:first-child,table.cmp th:first-child{font-weight:800}
+  table.cmp tr.hl{background:rgba(139,123,255,.13)}
+  table.cmp tr.hl:hover{background:rgba(139,123,255,.18)}
+  .yes{color:var(--green);font-weight:700} .no{color:#ff7a90;font-weight:700} .mid{color:var(--amber);font-weight:700}
+  .cat{display:inline-block;font-size:11px;font-weight:800;padding:.2em .6em;border-radius:6px;letter-spacing:.03em}
+  .cat.cls{background:rgba(62,230,208,.14);color:#a6f5ea} .cat.neu{background:rgba(255,206,74,.14);color:#ffe08a} .cat.gen{background:rgba(139,123,255,.16);color:#c9c1ff}
+
+  @media (max-width:820px){
+    .cols-2,.cols-2b,.grid-3,.grid-4{grid-template-columns:1fr}
+    .flow{flex-direction:column}.flow .arr{transform:rotate(90deg);padding:6px 0}
+    table.cmp{font-size:11px}table.cmp th,table.cmp td{padding:6px 6px}
+  }
+  svg{max-width:100%;height:auto}
+</style>
+</head>
+<body>
+<div class="progress" id="bar"></div>
+<div class="deck" id="deck">
+
+<!-- 1 · TITLE -->
+<section class="slide active" data-name="Title">
+  <span class="hero-badge">🛰️ Tech Talk · 30 min</span>
+  <h1 style="margin-top:.4em">From <span class="grad">Photos</span> to<br>a <span class="grad">3D&nbsp;Model</span></h1>
+  <p class="lead">The science of <b>photogrammetry</b> — and how we built a mobile app that turns a handful of camera shots into a real, downloadable 3D asset.</p>
+  <div class="hero-meta">
+    <span class="pill">📷 Multi-image capture</span>
+    <span class="pill">🧠 AI reconstruction</span>
+    <span class="pill">📦 glTF / GLB</span>
+    <span class="pill">🤖 Android · Kotlin · Compose</span>
+  </div>
+  <p class="muted" style="margin-top:2.4em;font-size:14px">Case study: <b>ImagesTo3DModel</b> (Meshy_EAM_3D) · EAM360</p>
+</section>
+
+<!-- 2 · AGENDA -->
+<section class="slide" data-name="Agenda">
+  <span class="kicker"><span class="dot"></span>What we'll cover</span>
+  <h2>The journey ahead</h2>
+  <div class="grid-3" style="margin-top:.6em">
+    <div class="card"><span class="ico">🔎</span><h3>1 · The Idea</h3><p>What photogrammetry is and why it matters.</p></div>
+    <div class="card"><span class="ico">⚙️</span><h3>2 · The Science</h3><p>How 2D pixels become 3D geometry.</p></div>
+    <div class="card"><span class="ico">🧠</span><h3>3 · Classic vs AI</h3><p>Structure-from-Motion vs. generative 3D.</p></div>
+    <div class="card"><span class="ico">📱</span><h3>4 · The App</h3><p>Architecture of our Android build.</p></div>
+    <div class="card"><span class="ico">🔬</span><h3>5 · The Code</h3><p>Capture → upload → generate → render.</p></div>
+    <div class="card"><span class="ico">🚀</span><h3>6 · Beyond</h3><p>Best practices, limits & where it's going.</p></div>
+  </div>
+</section>
+
+<!-- 3 · WHAT IS IT -->
+<section class="slide" data-name="Definition">
+  <div class="cols-2b">
+    <div>
+      <span class="kicker"><span class="dot"></span>Definition</span>
+      <h2>What is <span class="grad">photogrammetry?</span></h2>
+      <p class="lead" style="color:var(--ink)"><i>photo</i> (light) + <i>gram</i> (drawing) + <i>metry</i> (measurement)</p>
+      <p style="margin-top:1em" class="muted">The science of <b>obtaining reliable measurements and 3D shape</b> of real objects from overlapping 2D photographs taken from different viewpoints.</p>
+      <div class="callout" style="margin-top:1.2em">Your eyes already do this — two viewpoints (left + right eye) let your brain triangulate depth. Photogrammetry does it with many cameras and math.</div>
+    </div>
+    <div>
+      <!-- stereo triangulation SVG -->
+      <svg viewBox="0 0 420 320" role="img" aria-label="Triangulation diagram">
+        <defs>
+          <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#3ee6d0"/><stop offset="1" stop-color="#8b7bff"/>
+          </linearGradient>
+          <radialGradient id="obj" cx=".5" cy=".4" r=".6">
+            <stop offset="0" stop-color="#ff6cab"/><stop offset="1" stop-color="#8b7bff"/>
+          </radialGradient>
+        </defs>
+        <!-- object -->
+        <circle cx="210" cy="90" r="34" fill="url(#obj)" opacity=".95"/>
+        <circle cx="210" cy="90" r="34" fill="none" stroke="#fff" stroke-opacity=".3"/>
+        <text x="210" y="42" fill="#95a3c9" font-size="13" text-anchor="middle">object point</text>
+        <!-- cameras -->
+        <g fill="url(#g1)">
+          <rect x="40" y="250" width="52" height="36" rx="6"/>
+          <rect x="184" y="270" width="52" height="36" rx="6"/>
+          <rect x="330" y="250" width="52" height="36" rx="6"/>
+        </g>
+        <text x="66" y="305" fill="#95a3c9" font-size="12" text-anchor="middle">cam 1</text>
+        <text x="210" y="325" fill="#95a3c9" font-size="12" text-anchor="middle">cam 2</text>
+        <text x="356" y="305" fill="#95a3c9" font-size="12" text-anchor="middle">cam 3</text>
+        <!-- rays -->
+        <g stroke="url(#g1)" stroke-width="2" stroke-dasharray="4 4" opacity=".85">
+          <line x1="66" y1="250" x2="210" y2="90"/>
+          <line x1="210" y1="270" x2="210" y2="90"/>
+          <line x1="356" y1="250" x2="210" y2="90"/>
+        </g>
+        <text x="210" y="180" fill="#3ee6d0" font-size="13" text-anchor="middle" font-weight="700">rays intersect → depth</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- 4 · WHERE USED -->
+<section class="slide" data-name="Applications">
+  <span class="kicker"><span class="dot"></span>Why it matters</span>
+  <h2>It's everywhere</h2>
+  <div class="grid-4" style="margin-top:.5em">
+    <div class="card"><span class="ico">🗺️</span><h3>Mapping & GIS</h3><p>Drone surveys, terrain & orthomosaics.</p></div>
+    <div class="card"><span class="ico">🏗️</span><h3>Construction / EAM</h3><p>As-built capture, asset digital twins, inspection.</p></div>
+    <div class="card"><span class="ico">🎮</span><h3>Games & VFX</h3><p>Photoreal scanned props and environments.</p></div>
+    <div class="card"><span class="ico">🏛️</span><h3>Heritage</h3><p>Digitizing artifacts & monuments.</p></div>
+    <div class="card"><span class="ico">🩺</span><h3>Medical</h3><p>Body & wound surface measurement.</p></div>
+    <div class="card"><span class="ico">🛒</span><h3>E-commerce</h3><p>3D/AR product views from photos.</p></div>
+    <div class="card"><span class="ico">🚗</span><h3>Automotive</h3><p>Reverse engineering & QA.</p></div>
+    <div class="card"><span class="ico">🎬</span><h3>Robotics/AR</h3><p>Scene understanding & SLAM.</p></div>
+  </div>
+  <p class="muted" style="margin-top:1.5em">Our focus — <b>Enterprise Asset Management</b>: capture a physical asset on a phone, get a 3D model for records, review and inspection.</p>
+</section>
+
+<!-- 5 · THE SCIENCE overview -->
+<section class="slide" data-name="How it works">
+  <span class="kicker"><span class="dot"></span>The core idea</span>
+  <h2>How do 2D pixels become 3D?</h2>
+  <div class="cols-2">
+    <div>
+      <ul>
+        <li><b>Overlap is everything.</b> The same surface point must appear in several photos.</li>
+        <li><b>Find matching features</b> across those photos (corners, textures, keypoints).</li>
+        <li><b>Solve two things at once</b> — where each camera was, and where each 3D point is.</li>
+        <li><b>Triangulate</b> matched rays to recover depth, then densify into a full surface.</li>
+      </ul>
+    </div>
+    <div class="card" style="border-color:rgba(62,230,208,.4)">
+      <h3 class="grad" style="font-size:20px">The golden rule</h3>
+      <p style="margin-top:.6em;color:var(--ink)">More <b>overlapping viewpoints</b> = more matched rays = more accurate geometry.</p>
+      <p style="margin-top:.8em">This is exactly why our app asks the user to <b>capture the object from multiple angles</b> before it reconstructs.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 6 · CLASSIC PIPELINE -->
+<section class="slide" data-name="Pipeline">
+  <span class="kicker"><span class="dot"></span>Classic pipeline</span>
+  <h2>Structure-from-Motion → Mesh</h2>
+  <div class="grid-3" style="margin-top:.4em;gap:16px">
+    <div class="step"><span class="num">1</span><h3>Feature Detection</h3><p>Find distinctive keypoints (SIFT/ORB) in every image.</p></div>
+    <div class="step"><span class="num">2</span><h3>Feature Matching</h3><p>Match the same points across overlapping photos.</p></div>
+    <div class="step"><span class="num">3</span><h3>Structure-from-Motion</h3><p>Recover camera poses + a sparse 3D point cloud.</p></div>
+    <div class="step"><span class="num">4</span><h3>Bundle Adjustment</h3><p>Globally optimize to minimize re-projection error.</p></div>
+    <div class="step"><span class="num">5</span><h3>Dense / MVS</h3><p>Multi-View Stereo fills in a dense point cloud.</p></div>
+    <div class="step"><span class="num">6</span><h3>Meshing</h3><p>Points → triangle surface (e.g. Poisson).</p></div>
+    <div class="step"><span class="num">7</span><h3>Texturing</h3><p>Project original photos back onto the mesh.</p></div>
+    <div class="step"><span class="num">8</span><h3>Export</h3><p>Output OBJ / glTF / GLB for viewing & AR.</p></div>
+    <div class="step" style="border-color:rgba(139,123,255,.5)"><span class="num" style="background:linear-gradient(135deg,var(--pink),var(--violet))">✦</span><h3>Result</h3><p>A measurable, textured 3D replica of reality.</p></div>
+  </div>
+</section>
+
+<!-- 7 · CLASSIC vs AI -->
+<section class="slide" data-name="Classic vs AI">
+  <span class="kicker"><span class="dot"></span>Two roads to 3D</span>
+  <h2>Classical photogrammetry <span class="muted" style="font-weight:400">vs</span> AI reconstruction</h2>
+  <div class="cols-2" style="margin-top:.4em">
+    <div class="card">
+      <h3 class="c" style="color:var(--cyan)">🧭 Classical (SfM / MVS)</h3>
+      <ul style="margin-top:.8em">
+        <li>Needs <b>many</b> well-overlapped photos (30–100+)</li>
+        <li>Geometrically <b>accurate & measurable</b></li>
+        <li>Struggles with shiny / textureless / thin parts</li>
+        <li>Heavy compute; minutes to hours</li>
+        <li>Tools: RealityCapture, Meshroom, Metashape</li>
+      </ul>
+    </div>
+    <div class="card" style="border-color:rgba(139,123,255,.5)">
+      <h3 style="color:var(--violet)">🧠 AI / Generative (our app)</h3>
+      <ul style="margin-top:.8em">
+        <li>Works from <b>a few</b> images (we send 4)</li>
+        <li>Neural priors <b>hallucinate unseen surfaces</b></li>
+        <li>Robust to sparse views; fast turnaround</li>
+        <li>Runs in the <b>cloud</b> — light on the device</li>
+        <li>Tools: <b>Meshy AI</b>, Luma, Tripo, NeRF/Gaussian Splatting</li>
+      </ul>
+    </div>
+  </div>
+  <p class="muted" style="margin-top:1.3em">💡 We use the <b>AI approach</b>: it trades survey-grade precision for speed and a great mobile experience — ideal for asset visualization.</p>
+</section>
+
+<!-- 7b · COMPETITIVE LANDSCAPE -->
+<section class="slide" data-name="Landscape">
+  <span class="kicker"><span class="dot"></span>The market</span>
+  <h2>The 3D-capture landscape</h2>
+  <p class="muted" style="max-width:60ch">Meshy's rivals split into three camps. They're not all the same product — they answer different questions.</p>
+  <div class="grid-3" style="margin-top:1.1em">
+    <div class="card" style="border-color:rgba(62,230,208,.35)">
+      <span class="cat cls">Classical photogrammetry</span>
+      <h3 style="margin-top:.7em">📐 Measure reality</h3>
+      <p style="margin-top:.5em">Faithful, metric-accurate geometry from many overlapping photos.</p>
+      <div style="margin-top:.8em">
+        <span class="tag c">RealityCapture</span><span class="tag c">Agisoft Metashape</span><span class="tag c">Meshroom</span>
+      </div>
+    </div>
+    <div class="card" style="border-color:rgba(255,206,74,.35)">
+      <span class="cat neu">Neural scanning</span>
+      <h3 style="margin-top:.7em">📱 Scan a scene</h3>
+      <p style="margin-top:.5em">Phone-first capture using LiDAR, NeRF & Gaussian Splatting.</p>
+      <div style="margin-top:.8em">
+        <span class="tag">Polycam</span><span class="tag">Luma AI</span><span class="tag">KIRI Engine</span>
+      </div>
+    </div>
+    <div class="card" style="border-color:rgba(139,123,255,.55)">
+      <span class="cat gen">Generative AI</span>
+      <h3 style="margin-top:.7em">🧠 Create an asset</h3>
+      <p style="margin-top:.5em">Invents a full 3D model from a few images or text — fills unseen sides.</p>
+      <div style="margin-top:.8em">
+        <span class="tag">✦ Meshy (ours)</span><span class="tag">Tripo</span><span class="tag">Rodin</span>
+      </div>
+    </div>
+  </div>
+  <p class="muted" style="margin-top:1.2em;font-size:14px">Key point: Meshy competes on <b>speed and low input</b>, not survey accuracy. Different job, different tool.</p>
+</section>
+
+<!-- 7c · COMPARISON TABLE -->
+<section class="slide" data-name="Comparison">
+  <span class="kicker"><span class="dot"></span>Head to head</span>
+  <h2>Meshy vs the field</h2>
+  <table class="cmp">
+    <thead>
+      <tr><th>Tool</th><th>Approach</th><th>Platform</th><th>Input</th><th>Speed</th><th>Metric accuracy</th><th>Pricing</th></tr>
+    </thead>
+    <tbody>
+      <tr class="hl">
+        <td>✦ Meshy AI</td><td><span class="cat gen">Generative</span></td><td>Cloud / API + web</td>
+        <td class="yes">1–4 images or text</td><td class="yes">Seconds–min</td><td class="no">Low (inferred)</td><td>Freemium / credits</td>
+      </tr>
+      <tr>
+        <td>RealityCapture</td><td><span class="cat cls">Photogrammetry</span></td><td>Windows (GPU)</td>
+        <td class="no">50–1000s photos</td><td class="mid">Fast (for class)</td><td class="yes">Very high</td><td>Free / per-export</td>
+      </tr>
+      <tr>
+        <td>Agisoft Metashape</td><td><span class="cat cls">Photogrammetry</span></td><td>Win / Mac / Linux</td>
+        <td class="no">Dozens–1000s</td><td class="no">Slow</td><td class="yes">Very high (survey)</td><td>$179 / $3,499</td>
+      </tr>
+      <tr>
+        <td>Meshroom</td><td><span class="cat cls">Photogrammetry</span></td><td>Win / Linux (CUDA)</td>
+        <td class="no">Dozens–100s</td><td class="no">Slow</td><td class="mid">High</td><td class="yes">Free / open-source</td>
+      </tr>
+      <tr>
+        <td>Polycam</td><td><span class="cat neu">LiDAR + photo</span></td><td>iOS / Android / web</td>
+        <td class="mid">Photos or LiDAR</td><td class="yes">Fast</td><td class="mid">Good</td><td>Freemium / sub</td>
+      </tr>
+      <tr>
+        <td>Luma AI</td><td><span class="cat neu">NeRF / Splatting</span></td><td>iOS / web</td>
+        <td class="mid">Video / photos</td><td class="mid">Cloud minutes</td><td class="mid">Scene-good</td><td class="yes">Free tier</td>
+      </tr>
+      <tr>
+        <td>KIRI Engine</td><td><span class="cat neu">Photogram + Splat</span></td><td>iOS / Android / web</td>
+        <td class="mid">Photos / video</td><td class="mid">Cloud minutes</td><td class="mid">Good</td><td>Freemium / sub</td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="muted" style="margin-top:.9em;font-size:13px">Pricing/limits are indicative and change often — verify before quoting in production decisions.</p>
+</section>
+
+<!-- 7d · WHERE MESHY FITS -->
+<section class="slide" data-name="When to pick">
+  <span class="kicker"><span class="dot"></span>Choosing wisely</span>
+  <h2>So when do you pick <span class="grad">what?</span></h2>
+  <div class="cols-2" style="margin-top:.3em">
+    <div>
+      <div class="card" style="border-color:rgba(139,123,255,.5)">
+        <h3 style="color:var(--violet)">✦ Reach for Meshy when…</h3>
+        <ul style="margin-top:.7em">
+          <li>You have <b>few photos</b> (or just text) and need a model <b>now</b></li>
+          <li>You want a <b>clean, game-ready asset</b>, not a survey</li>
+          <li>You need an <b>API</b> to embed in an app — like we did</li>
+          <li>Missing sides can be <b>plausibly invented</b></li>
+        </ul>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <h3 class="grad">Reach for the others when…</h3>
+        <ul style="margin-top:.7em">
+          <li><b>Metashape / RealityCapture</b> → survey-grade accuracy, drone mapping, dimensions matter</li>
+          <li><b>Meshroom</b> → free, offline, full control of the pipeline</li>
+          <li><b>Polycam / KIRI</b> → quick phone scans, LiDAR rooms & objects</li>
+          <li><b>Luma AI</b> → cinematic scenes & Gaussian-splat flythroughs</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <p class="muted" style="margin-top:1.2em">For <b>EAM asset visualization</b> on a phone, Meshy's speed + low input + API win — accuracy isn't the priority, <b>turnaround and UX are.</b></p>
+</section>
+
+<!-- 8 · THE APP -->
+<section class="slide" data-name="The App">
+  <div class="cols-2b">
+    <div>
+      <span class="kicker"><span class="dot"></span>Case study</span>
+      <h2>ImagesTo3DModel</h2>
+      <p class="lead" style="color:var(--ink)">A native Android app: point your camera at an object, capture a few angles, and get back a real 3D model you can rotate and download.</p>
+      <div class="hero-meta">
+        <span class="pill">Kotlin · Jetpack Compose</span>
+        <span class="pill">MVVM · Coroutines</span>
+        <span class="pill">CameraX</span>
+        <span class="pill">Meshy Multi-Image → 3D API</span>
+      </div>
+    </div>
+    <div>
+      <div class="flow" style="flex-direction:column;gap:10px">
+        <div class="node"><span class="e">📷</span><h3>Capture</h3><p>4 photos via CameraX</p></div>
+        <div class="arr">↓</div>
+        <div class="node"><span class="e">✂️</span><h3>Preprocess</h3><p>Center-crop + JPEG</p></div>
+        <div class="arr">↓</div>
+        <div class="node"><span class="e">☁️</span><h3>Generate</h3><p>Meshy AI cloud</p></div>
+        <div class="arr">↓</div>
+        <div class="node"><span class="e">🧊</span><h3>View & Save</h3><p>Render GLB · download</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 9 · ARCHITECTURE -->
+<section class="slide" data-name="Architecture">
+  <span class="kicker"><span class="dot"></span>Under the hood</span>
+  <h2>Clean, layered architecture</h2>
+  <div class="grid-3" style="margin-top:.4em">
+    <div class="card">
+      <span class="ico">🎨</span><h3>UI Layer</h3>
+      <p>Compose screens: Splash → Home → Camera Scan → History → 3D Viewer, wired by a NavHost. State via ViewModels.</p>
+    </div>
+    <div class="card">
+      <span class="ico">🧩</span><h3>Domain / VM</h3>
+      <p><code>CameraScanViewModel</code> holds <code>StateFlow</code> UI state — captured images, upload progress, task-created flag.</p>
+    </div>
+    <div class="card">
+      <span class="ico">🗄️</span><h3>Data Layer</h3>
+      <p><code>MeshyRepository</code> + Retrofit API + SharedPreferences history. Talks to Meshy, downloads GLBs.</p>
+    </div>
+  </div>
+  <pre style="margin-top:1.2em"><span class="c">// package map</span>
+ui/{splash, home, camera, history, view3dmodel, navigation, theme}
+data/{remote (Retrofit), repository, model, local (prefs)}
+util/ImageProcessor  <span class="c">→ crop captured frames</span></pre>
+</section>
+
+<!-- 10 · STEP 1 CAPTURE -->
+<section class="slide" data-name="Capture">
+  <span class="kicker"><span class="dot"></span>Step 1 · Photogrammetry starts here</span>
+  <h2>Capture: multiple viewpoints 📷</h2>
+  <div class="cols-2">
+    <div>
+      <ul>
+        <li>Live preview with <b>CameraX</b> bound to the Compose lifecycle.</li>
+        <li>Runtime <b>camera permission</b> handled before preview binds.</li>
+        <li>A counter enforces the <b>required number of shots</b> — each is a new viewpoint.</li>
+        <li>Thumbnails give instant feedback so the user covers all angles.</li>
+      </ul>
+      <div class="callout" style="margin-top:1em">This is the <b>data-acquisition stage</b> of photogrammetry — the quality of these shots decides the quality of the model.</div>
+    </div>
+    <div>
+      <pre><span class="c">// CameraScanScreen.kt — take a photo</span>
+imageCapture.<span class="f">takePicture</span>(outputOptions, executor,
+  <span class="k">object</span> : OnImageSavedCallback {
+    <span class="k">override fun</span> <span class="f">onImageSaved</span>(r) {
+      <span class="c">// crop to a centered object frame</span>
+      <span class="k">val</span> uri = ImageProcessor
+        .<span class="f">centerCropToObjectFrame</span>(context, file)
+      onImageCaptured(uri)
+    }
+  })</pre>
+    </div>
+  </div>
+</section>
+
+<!-- 11 · STEP 2 PREPROCESS -->
+<section class="slide" data-name="Preprocess">
+  <span class="kicker"><span class="dot"></span>Step 2 · Clean the input</span>
+  <h2>Preprocess: focus on the object ✂️</h2>
+  <div class="cols-2">
+    <div>
+      <ul>
+        <li><b>Center-crop</b> to a square, keeping the subject framed and removing distracting background.</li>
+        <li>Re-encode to <b>JPEG at 92% quality</b> — small enough to upload, sharp enough to reconstruct.</li>
+        <li>Bitmaps are <b>recycled</b> and temp files cleaned up to protect memory.</li>
+      </ul>
+      <p class="muted" style="margin-top:1em">Consistent framing helps the AI focus on the target — the app's nod to the classic "isolate your subject" rule.</p>
+    </div>
+    <div>
+      <pre><span class="c">// ImageProcessor.kt</span>
+<span class="k">val</span> size = <span class="f">min</span>(bmp.width, bmp.height)
+<span class="k">val</span> left = (bmp.width  - size) / <span class="n">2</span>
+<span class="k">val</span> top  = (bmp.height - size) / <span class="n">2</span>
+<span class="k">val</span> cropped = Bitmap.<span class="f">createBitmap</span>(
+    bmp, left, top, size, size)
+cropped.<span class="f">compress</span>(JPEG, <span class="n">92</span>, stream)</pre>
+    </div>
+  </div>
+</section>
+
+<!-- 12 · STEP 3 ENCODE + UPLOAD -->
+<section class="slide" data-name="Upload">
+  <span class="kicker"><span class="dot"></span>Step 3 · Send to the engine</span>
+  <h2>Encode &amp; upload ☁️</h2>
+  <div class="cols-2">
+    <div>
+      <ul>
+        <li>Each image → <b>Base64 data URI</b> (<code>data:image/jpeg;base64,…</code>).</li>
+        <li>Payload capped at <b>4 images</b> to match the API limit.</li>
+        <li>Sent as JSON with texturing + PBR flags and target format <code>glb</code>.</li>
+        <li>Runs on <code>Dispatchers.IO</code>, wrapped in <code>runCatching</code> → <code>Result</code>.</li>
+      </ul>
+    </div>
+    <div>
+      <pre><span class="c">// MeshyRepository.kt</span>
+<span class="k">val</span> dataUris = uris.<span class="f">take</span>(<span class="n">4</span>).<span class="f">map</span> { it.<span class="f">toDataUri</span>() }
+api.<span class="f">createTask</span>(
+  <span class="f">CreateTaskRequest</span>(
+    imageUrls    = dataUris,
+    shouldTexture = <span class="k">true</span>,
+    enablePbr     = <span class="k">true</span>,
+    targetFormats = <span class="f">listOf</span>(<span class="s">"glb"</span>)),
+  apiKey = <span class="s">"Bearer $KEY"</span>)</pre>
+    </div>
+  </div>
+  <p class="muted" style="margin-top:1em">🔐 The API key is injected at build time via <code>BuildConfig</code> — kept out of source control.</p>
+</section>
+
+<!-- 13 · STEP 4 ASYNC TASK -->
+<section class="slide" data-name="Async job">
+  <span class="kicker"><span class="dot"></span>Step 4 · The reconstruction job</span>
+  <h2>An asynchronous cloud task</h2>
+  <div class="cols-2b">
+    <div>
+      <p class="muted">3D reconstruction takes time, so Meshy is a <b>job queue</b>, not a blocking call:</p>
+      <ul style="margin-top:.8em">
+        <li><b>POST</b> returns a <code>task id</code> immediately.</li>
+        <li>We persist that id to <b>local history</b> (SharedPreferences + Gson).</li>
+        <li><b>GET /{id}</b> reports <code>status</code>, <code>progress</code> and, when ready, <code>model_urls</code>.</li>
+        <li>The user can leave and come back — the id survives app restarts.</li>
+      </ul>
+    </div>
+    <div>
+      <pre><span class="c">// MeshyApi.kt</span>
+<span class="n">@POST</span>(<span class="s">"openapi/v1/multi-image-to-3d"</span>)
+<span class="k">suspend fun</span> <span class="f">createTask</span>(...): CreateTaskResponse
+
+<span class="n">@GET</span>(<span class="s">"openapi/v1/multi-image-to-3d/{id}"</span>)
+<span class="k">suspend fun</span> <span class="f">getTask</span>(
+  <span class="n">@Path</span>(<span class="s">"id"</span>) id: String, ...
+): MeshyTaskResponse
+<span class="c">// → status, progress, model_urls[glb]</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- 14 · STEP 5 DOWNLOAD -->
+<section class="slide" data-name="Download">
+  <span class="kicker"><span class="dot"></span>Step 5 · Retrieve the asset</span>
+  <h2>Download the GLB 📦</h2>
+  <div class="cols-2">
+    <div>
+      <ul>
+        <li>When <code>model_urls["glb"]</code> exists, we stream the file with <b>OkHttp</b>.</li>
+        <li>Saved via <b>MediaStore</b> into <code>Downloads/Meshy_EAM/</code> (scoped storage, Android 10+).</li>
+        <li><b>Cached locally</b> — re-opening a model skips the network entirely.</li>
+      </ul>
+      <div class="callout" style="margin-top:1em"><b>GLB</b> = binary glTF: geometry + textures + materials in one portable file. The "JPEG of 3D."</div>
+    </div>
+    <div>
+      <pre><span class="c">// getOrDownloadModelFilePath()</span>
+<span class="k">if</span> (<span class="f">isModelFileAvailable</span>(id))
+    <span class="k">return</span> <span class="f">getModelFilePath</span>(id)   <span class="c">// cache hit</span>
+
+<span class="k">val</span> url = task.modelUrls?.<span class="f">get</span>(<span class="s">"glb"</span>)
+    ?: <span class="f">error</span>(<span class="s">"GLB not ready yet"</span>)
+downloadClient.<span class="f">newCall</span>(<span class="f">Request</span>(url))
+    .<span class="f">execute</span>()  <span class="c">// → MediaStore Downloads</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- 15 · STEP 6 RENDER -->
+<section class="slide" data-name="Render">
+  <span class="kicker"><span class="dot"></span>Step 6 · See it in 3D</span>
+  <h2>Render the model 🧊</h2>
+  <div class="cols-2">
+    <div>
+      <ul>
+        <li><b>SceneView</b> (Google Filament PBR engine) renders the GLB in Compose.</li>
+        <li>A <code>ModelNode</code> is <b>scaled to unit size</b> and centered automatically.</li>
+        <li>Camera node positioned back on <b>Z</b> so the whole object is in frame.</li>
+        <li>Loading + error states handled while the model instance is created.</li>
+      </ul>
+      <p class="muted" style="margin-top:1em">The user can orbit the reconstructed asset — closing the loop from real object → photos → 3D.</p>
+    </div>
+    <div>
+      <pre><span class="c">// View3DModelScreen.kt</span>
+<span class="f">ModelNode</span>(
+  modelInstance = modelLoader
+      .<span class="f">createModelInstance</span>(modelFile),
+  scaleToUnits = <span class="n">2.0f</span>,
+  centerOrigin = <span class="f">Position</span>())
+
+<span class="f">Scene</span>(engine, modelLoader,
+      cameraNode, childNodes)</pre>
+    </div>
+  </div>
+</section>
+
+<!-- 16 · END-TO-END FLOW -->
+<section class="slide" data-name="End to end">
+  <span class="kicker"><span class="dot"></span>The whole pipeline</span>
+  <h2>End-to-end data flow</h2>
+  <div class="flow" style="margin-top:1em">
+    <div class="node"><span class="e">📷</span><h3>CameraX</h3><p>capture 4 frames</p></div>
+    <div class="arr">→</div>
+    <div class="node"><span class="e">✂️</span><h3>Crop + JPEG</h3><p>ImageProcessor</p></div>
+    <div class="arr">→</div>
+    <div class="node"><span class="e">🔤</span><h3>Base64</h3><p>data URIs</p></div>
+    <div class="arr">→</div>
+    <div class="node"><span class="e">☁️</span><h3>Meshy AI</h3><p>create task</p></div>
+    <div class="arr">→</div>
+    <div class="node"><span class="e">⏳</span><h3>Poll</h3><p>status/progress</p></div>
+    <div class="arr">→</div>
+    <div class="node"><span class="e">📦</span><h3>GLB</h3><p>download+cache</p></div>
+    <div class="arr">→</div>
+    <div class="node"><span class="e">🧊</span><h3>SceneView</h3><p>render 3D</p></div>
+  </div>
+  <p class="muted" style="margin-top:1.6em">Every classic photogrammetry stage has a counterpart here — capture, preprocessing, reconstruction (now neural, in the cloud), texturing and export.</p>
+</section>
+
+<!-- 17 · TECH STACK -->
+<section class="slide" data-name="Tech stack">
+  <span class="kicker"><span class="dot"></span>Toolbox</span>
+  <h2>The tech stack</h2>
+  <div class="cols-2" style="align-items:start">
+    <div>
+      <h3 class="grad">Android / UI</h3>
+      <div style="margin-top:.6em">
+        <span class="tag c">Kotlin 2.0</span><span class="tag c">Jetpack Compose</span><span class="tag c">Material 3</span>
+        <span class="tag c">Navigation-Compose</span><span class="tag c">MVVM + StateFlow</span><span class="tag c">Coroutines</span>
+      </div>
+      <h3 class="grad" style="margin-top:1.4em">Camera & Media</h3>
+      <div style="margin-top:.6em">
+        <span class="tag">CameraX (camera2)</span><span class="tag">Coil</span><span class="tag">MediaStore</span><span class="tag">Bitmap crop</span>
+      </div>
+    </div>
+    <div>
+      <h3 class="grad">Networking & Data</h3>
+      <div style="margin-top:.6em">
+        <span class="tag">Retrofit 2</span><span class="tag">OkHttp</span><span class="tag">Gson</span><span class="tag">SharedPreferences</span>
+      </div>
+      <h3 class="grad" style="margin-top:1.4em">3D & AI</h3>
+      <div style="margin-top:.6em">
+        <span class="tag">Meshy Multi-Image→3D</span><span class="tag">SceneView 2.3</span><span class="tag">Google Filament</span><span class="tag">glTF / GLB</span>
+      </div>
+      <p class="muted" style="margin-top:1.4em;font-size:14px">minSdk 29 · targetSdk 35 · Java 17</p>
+    </div>
+  </div>
+</section>
+
+<!-- 18 · CAPTURE BEST PRACTICES -->
+<section class="slide" data-name="Best practices">
+  <span class="kicker"><span class="dot"></span>Field tips</span>
+  <h2>How to capture <span class="grad">good</span> photos</h2>
+  <div class="grid-3" style="margin-top:.4em">
+    <div class="card"><span class="ico">🔄</span><h3>Orbit the object</h3><p>Move <i>around</i> it; don't just rotate on the spot. Cover every side.</p></div>
+    <div class="card"><span class="ico">🧩</span><h3>~60–80% overlap</h3><p>Each photo should share most of its content with the next.</p></div>
+    <div class="card"><span class="ico">💡</span><h3>Flat, even light</h3><p>Avoid hard shadows and harsh highlights that confuse matching.</p></div>
+    <div class="card"><span class="ico">🎯</span><h3>Sharp & in focus</h3><p>Blur destroys features. Keep the object filling the frame.</p></div>
+    <div class="card"><span class="ico">🚫</span><h3>Avoid shiny/clear</h3><p>Mirrors, glass and glossy metal break reconstruction.</p></div>
+    <div class="card"><span class="ico">🌫️</span><h3>Texture helps</h3><p>Matte, detailed surfaces reconstruct far better than blank ones.</p></div>
+  </div>
+</section>
+
+<!-- 19 · CHALLENGES -->
+<section class="slide" data-name="Challenges">
+  <span class="kicker"><span class="dot"></span>Reality check</span>
+  <h2>Limits &amp; challenges</h2>
+  <div class="cols-2">
+    <div>
+      <h3 class="grad">Physics is hard</h3>
+      <ul style="margin-top:.6em">
+        <li>Reflective / transparent / textureless surfaces</li>
+        <li>Thin structures & fine detail (wires, hair)</li>
+        <li>Moving subjects and changing light</li>
+        <li>Scale ambiguity without a reference / GPS</li>
+      </ul>
+    </div>
+    <div>
+      <h3 class="grad">In our app specifically</h3>
+      <ul style="margin-top:.6em">
+        <li>Only <b>4 images</b> → AI infers a lot; less precise</li>
+        <li>Depends on <b>cloud latency</b> & network</li>
+        <li>Base64 inflates payload size (~33%)</li>
+        <li>No automatic polling loop yet — user re-checks history</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 20 · FUTURE -->
+<section class="slide" data-name="Roadmap">
+  <span class="kicker"><span class="dot"></span>What's next</span>
+  <h2>Where we can take it 🚀</h2>
+  <div class="grid-4" style="margin-top:.4em">
+    <div class="card"><span class="ico">🔁</span><h3>Auto-poll</h3><p>Live progress + push notification when ready.</p></div>
+    <div class="card"><span class="ico">📸</span><h3>More views</h3><p>Guided capture ring; raise image count for fidelity.</p></div>
+    <div class="card"><span class="ico">🕶️</span><h3>AR placement</h3><p>Drop the model into the real world via ARCore.</p></div>
+    <div class="card"><span class="ico">🧠</span><h3>On-device</h3><p>Explore NeRF / Gaussian Splatting locally.</p></div>
+    <div class="card"><span class="ico">📐</span><h3>Measurements</h3><p>Add scale reference for true dimensions.</p></div>
+    <div class="card"><span class="ico">🔐</span><h3>Secure keys</h3><p>Move API auth behind our own backend proxy.</p></div>
+    <div class="card"><span class="ico">☁️</span><h3>Cloud sync</h3><p>Team asset library for EAM records.</p></div>
+    <div class="card"><span class="ico">🧾</span><h3>Formats</h3><p>Export USDZ / OBJ alongside GLB.</p></div>
+  </div>
+</section>
+
+<!-- 21 · TAKEAWAYS -->
+<section class="slide" data-name="Takeaways">
+  <span class="kicker"><span class="dot"></span>Remember this</span>
+  <h2>Key takeaways</h2>
+  <div class="row" style="margin-top:.6em;gap:22px">
+    <div class="card" style="flex:1;min-width:240px">
+      <div class="stat c">1</div>
+      <h3 style="margin-top:.4em">Overlap = 3D</h3>
+      <p>Photogrammetry recovers shape from <b>overlapping viewpoints</b> via triangulation.</p>
+    </div>
+    <div class="card" style="flex:1;min-width:240px">
+      <div class="stat v">2</div>
+      <h3 style="margin-top:.4em">AI changed the game</h3>
+      <p>Neural models reconstruct from <b>a few</b> photos — fast, mobile, cloud-powered.</p>
+    </div>
+    <div class="card" style="flex:1;min-width:240px">
+      <div class="stat p">3</div>
+      <h3 style="margin-top:.4em">Same pipeline</h3>
+      <p>Capture → preprocess → reconstruct → texture → render — our app mirrors it end-to-end.</p>
+    </div>
+  </div>
+  <p class="lead" style="margin-top:1.8em;color:var(--ink)">A phone camera + good technique + the right engine = <span class="grad">reality, digitized.</span></p>
+</section>
+
+<!-- 22 · THANKS -->
+<section class="slide" data-name="Thanks">
+  <span class="hero-badge">🙌 Thank you</span>
+  <h1 style="margin-top:.4em">Questions?</h1>
+  <p class="lead">Let's talk photogrammetry, AI 3D, and the Meshy pipeline.</p>
+  <div class="hero-meta">
+    <span class="pill">📱 ImagesTo3DModel · Meshy_EAM_3D</span>
+    <span class="pill">✉️ androiddev@eam360.com</span>
+  </div>
+  <p class="muted" style="margin-top:2.4em;font-size:14px">Demo the app live — capture something in the room and reconstruct it. 🎥</p>
+</section>
+
+</div>
+
+<div class="progress" id="bar" style="width:0"></div>
+<div class="foot">
+  <span class="brand">📐 Photogrammetry · From Photos to 3D</span>
+  <span id="counter">1 / 22</span>
+</div>
+<div class="hint">Use <kbd>←</kbd> <kbd>→</kbd> or <kbd>Space</kbd> · <kbd>F</kbd> fullscreen</div>
+
+<script>
+  const slides=[...document.querySelectorAll('.slide')];
+  let i=0;
+  const bar=document.getElementById('bar');
+  const counter=document.getElementById('counter');
+  function show(n){
+    i=Math.max(0,Math.min(slides.length-1,n));
+    slides.forEach((s,k)=>s.classList.toggle('active',k===i));
+    bar.style.width=((i+1)/slides.length*100)+'%';
+    counter.textContent=(i+1)+' / '+slides.length;
+  }
+  function next(){show(i+1)} function prev(){show(i-1)}
+  document.addEventListener('keydown',e=>{
+    if(['ArrowRight','ArrowDown',' ','PageDown'].includes(e.key)){e.preventDefault();next()}
+    else if(['ArrowLeft','ArrowUp','PageUp'].includes(e.key)){e.preventDefault();prev()}
+    else if(e.key==='Home'){show(0)} else if(e.key==='End'){show(slides.length-1)}
+    else if(e.key==='f'||e.key==='F'){document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()}
+  });
+  let sx=0;
+  document.addEventListener('touchstart',e=>sx=e.touches[0].clientX,{passive:true});
+  document.addEventListener('touchend',e=>{const dx=e.changedTouches[0].clientX-sx;if(Math.abs(dx)>50)dx<0?next():prev()},{passive:true});
+  // click right/left third to navigate
+  document.getElementById('deck').addEventListener('click',e=>{
+    const x=e.clientX/window.innerWidth;
+    if(x>0.72)next(); else if(x<0.28)prev();
+  });
+  show(0);
+</script>
+</body>
+</html>
